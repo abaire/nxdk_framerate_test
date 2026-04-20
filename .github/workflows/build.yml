@@ -19,30 +19,34 @@ jobs:
     name: Build ISO
     runs-on: ubuntu-latest
     steps:
-    - name: Clone tree
-      uses: actions/checkout@v4
-      with:
-        submodules: recursive
-    - name: Install dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y \
-          llvm \
-          lld
-        pip3 install -r requirements.txt --break-system-packages
+      - name: Clone tree
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
-    - name: Compile
-      run: |
-        export NXDK_DIR="${GITHUB_WORKSPACE}/third_party/nxdk"
-        cmake -B build \
-              -DCMAKE_BUILD_TYPE=Release \
-              -DCMAKE_TOOLCHAIN_FILE="${NXDK_DIR}/share/toolchain-nxdk.cmake"
-        cmake --build build -- -j$(grep -c processor /proc/cpuinfo)
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y llvm lld
+          pip3 install -r requirements.txt --break-system-packages
+
+      - name: Compile
+        run: |
+          export NXDK_DIR="${GITHUB_WORKSPACE}/third_party/nxdk"
+          cmake -B build \
+                -DCMAKE_BUILD_TYPE=Release \
+                -DCMAKE_TOOLCHAIN_FILE="${NXDK_DIR}/share/toolchain-nxdk.cmake"
+          cmake --build build -- -j$(grep -c processor /proc/cpuinfo)
+
+      - name: Upload ISO artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: xbox-iso
+          path: build/src/xiso/nxdk_framerate_test_xiso/*.iso
 
   BuildMacOS:
     name: Build macOS
     runs-on: macOS-latest
-
     steps:
       - name: Clone tree
         uses: actions/checkout@v4
@@ -53,11 +57,7 @@ jobs:
         run: |
           export HOMEBREW_NO_AUTO_UPDATE=1
           export HOMEBREW_NO_INSTALL_CLEANUP=1
-          brew install \
-            cmake \
-            coreutils \
-            llvm \
-            lld
+          brew install cmake coreutils llvm lld
           export PIP_BREAK_SYSTEM_PACKAGES=1
           pip3 install -r requirements.txt
 
@@ -68,10 +68,33 @@ jobs:
           export PATH="${LLVMDIR}/bin:${LLDDIR}/bin:$PATH"
           export LDFLAGS="-L${LLVMDIR}/lib/c++ -L${LLVMDIR}/lib -L${LLDDIR}/lib"
           export CPPFLAGS="-I${LLDDIR}/include"
-
           export NXDK_DIR="${GITHUB_WORKSPACE}/third_party/nxdk"
           cmake -B build \
                 -DCMAKE_BUILD_TYPE=Release \
                 -DCMAKE_TOOLCHAIN_FILE="${NXDK_DIR}/share/toolchain-nxdk.cmake" \
                 -DDUMP_CONFIG_FILE=OFF
-          cmake --build build -- -j
+          cmake --build build -- -j$(sysctl -n hw.ncpu)
+
+  CreateRelease:
+    name: Create Release
+    needs: BuildISO
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download ISO artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: xbox-iso
+          path: ./artifacts
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: "Latest Build"
+          body: "Automated build from main branch. SHA: ${{ github.sha }}"
+          files: ./artifacts/*.iso
+          prerelease: true
+          make_latest: true
