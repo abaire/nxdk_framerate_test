@@ -5,8 +5,8 @@ Trivial test to verify that video frames are updated at a given FPS.
 
 ## Prerequisites
 
-The sample project uses https://pypi.org/project/nv2a-vsh to build a trivial passthrough vertex shader. It may be
-installed by running `pip install -r requirements.txt` from this directory.
+The sample project uses https://pypi.org/project/nv2a-vsh. It may be installed by running
+`pip install -r requirements.txt` from this directory.
 
 ## CLion
 
@@ -30,7 +30,8 @@ Under Settings > Build, Execution, Deployment > CMake
 1. Set `Upload executable` to `Never`
 1. Set `'target remote' args` to `127.0.0.1:1234`
 1. Set `GDB Server` to the path to the xemu binary
-1. Set `GDB Server args` to `-s -S -dvd_path "$CMakeCurrentBuildDir$/xiso/<your_project_name>_xiso/<your_project_name>_xiso.iso"` (the `-S` is
+1. Set `GDB Server args` to
+   `-s -S -dvd_path "$CMakeCurrentBuildDir$/xiso/<your_project_name>_xiso/<your_project_name>_xiso.iso"` (the `-S` is
    optional and will cause xemu to wait for the debugger to connnect)
 1. Under `Advanced GDB Server Options`
 1. Set "Working directory" to `$ProjectFileDir$`
