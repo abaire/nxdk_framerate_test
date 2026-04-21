@@ -11,6 +11,7 @@
 #include <windows.h>
 
 #include "nxdk_ext.h"
+#include "printf.h"
 #include "pushbuffer.h"
 
 using namespace PBKitPlusPlus;
@@ -23,6 +24,10 @@ static constexpr int kBitsPerPixel = 32;
 static constexpr int kMaxTextureSize = 512;
 static constexpr int kMaxTextureDepth = 3;
 static constexpr int kFramebufferPitch = kFramebufferWidth * 4;
+
+extern "C" {
+void _putchar(char character) { putchar(character); }
+}
 
 static void Initialize(NV2AState &state) {
   state.SetSurfaceFormat(NV2AState::SCF_A8R8G8B8, NV2AState::SZF_Z16, state.GetFramebufferWidth(),
@@ -159,7 +164,7 @@ void WasteTime(NV2AState &state, uint32_t draw_iterations) {
 }
 
 void RenderScene(NV2AState &state, uint32_t program_start, uint32_t last_frame_start, uint32_t frame_start,
-                 uint32_t draw_iterations) {
+                 uint32_t draw_iterations, float current_fps) {
   static constexpr float kMarginHorizontal = 10.f;
   static constexpr float kMarginTop = 112.f;
   static constexpr uint32_t kOn60FPS = 0xFFFF0000;
@@ -235,7 +240,16 @@ void RenderScene(NV2AState &state, uint32_t program_start, uint32_t last_frame_s
   }
 
   pb_print("Back: exit, A/X/up inc, B/Y/down dec\n");
-  pb_print("Elapsed ms %u\n", frame_elapsed);
+  char fps[32];
+  if (current_fps == 0) {
+    snprintf(fps, sizeof(fps), "<WHITE>");
+  } else if (current_fps < 0) {
+    snprintf(fps, sizeof(fps), "<CALCULATING>");
+  } else {
+    snprintf_(fps, sizeof(fps), "%0.4f", current_fps);
+  }
+
+  pb_print("Elapsed ms %3u  FPS %s\n", frame_elapsed, fps);
   pb_print("Iterations %u\n", draw_iterations);
 
   for (auto i = 0; i < 32; ++i) {
@@ -290,7 +304,17 @@ int main() {
   static constexpr auto kDrawIterationIncLarge = 1000;
   uint32_t draw_iterations = 0;
 
-  auto handle_button = [&running, &draw_iterations](const SDL_ControllerButtonEvent &event) {
+  static constexpr auto kFPSCounterFrames = 60;
+  int32_t fps_counter_frames = -1;
+
+  LARGE_INTEGER perf_freq;
+  QueryPerformanceFrequency(&perf_freq);
+
+  LARGE_INTEGER start_counter;
+  float current_fps = 0.0f;
+
+  auto handle_button = [&running, &draw_iterations, &fps_counter_frames, &start_counter,
+                        &current_fps](const SDL_ControllerButtonEvent &event) {
     switch (event.button) {
       case SDL_CONTROLLER_BUTTON_BACK:
         running = false;
@@ -344,6 +368,13 @@ int main() {
         }
         break;
 
+      case SDL_CONTROLLER_BUTTON_LEFTSHOULDER:
+        if (fps_counter_frames < 0) {
+          QueryPerformanceCounter(&start_counter);
+          fps_counter_frames = kFPSCounterFrames;
+          current_fps = -1.f;
+        }
+
       default:
         break;
     }
@@ -393,12 +424,23 @@ int main() {
     }
 
     WasteTime(state, draw_iterations);
-    RenderScene(state, program_start, last_frame_start, frame_start, draw_iterations);
+    RenderScene(state, program_start, last_frame_start, frame_start, draw_iterations, current_fps);
     last_frame_start = frame_start;
 
     while (pb_busy()) {
     }
     while (pb_finished()) {
+    }
+
+    if (fps_counter_frames > 0) {
+      if (--fps_counter_frames == 0) {
+        fps_counter_frames = -1;
+        LARGE_INTEGER now;
+        QueryPerformanceCounter(&now);
+
+        int64_t elapsed_ticks = now.QuadPart - start_counter.QuadPart;
+        current_fps = static_cast<float>(kFPSCounterFrames * perf_freq.QuadPart) / static_cast<float>(elapsed_ticks);
+      }
     }
   }
 
