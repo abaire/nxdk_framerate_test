@@ -96,5 +96,5 @@ jobs:
           name: "Latest Build"
           body: "Automated build from main branch. SHA: ${{ github.sha }}"
           files: ./artifacts/*.iso
-          prerelease: true
+          prerelease: false
           make_latest: true
