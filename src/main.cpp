@@ -216,6 +216,24 @@ void RenderScene(NV2AState &state, uint32_t program_start, uint32_t last_frame_s
     left += quad_width * 4;
   }
 
+  // Leverage flicker fusion to make lower framerates clearly apparent
+  {
+    static constexpr float kColorSwatchWidth = 16.f;
+    static constexpr float kColorSwatchHeight = 64.f;
+    static constexpr uint32_t kReferenceSwatchColor = 0xFF00BABA;
+    static constexpr float kColorSwatchTop = 16.f;
+
+    const float kSwatchLeft = state.GetFramebufferWidthF() - kColorSwatchWidth * 2.f;
+
+    state.SetDiffuse(kReferenceSwatchColor);
+    state.DrawScreenQuad(kSwatchLeft, kColorSwatchTop, kSwatchLeft + kColorSwatchWidth,
+                         kColorSwatchTop + kColorSwatchHeight, kQuadZ);
+
+    state.SetDiffuse(index_60 & 0x01 ? 0xFF00FF00 : 0xFF0000FF);
+    state.DrawScreenQuad(kSwatchLeft + kColorSwatchWidth, kColorSwatchTop, kSwatchLeft + kColorSwatchWidth * 2.f,
+                         kColorSwatchTop + kColorSwatchHeight, kQuadZ);
+  }
+
   pb_print("Back: exit, A/X/up inc, B/Y/down dec\n");
   pb_print("Elapsed ms %u\n", frame_elapsed);
   pb_print("Iterations %u\n", draw_iterations);
