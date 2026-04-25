@@ -164,7 +164,7 @@ void WasteTime(NV2AState &state, uint32_t draw_iterations) {
 }
 
 void RenderScene(NV2AState &state, uint32_t program_start, uint32_t last_frame_start, uint32_t frame_start,
-                 uint32_t draw_iterations, float current_fps) {
+                 uint32_t draw_iterations, float current_fps, const VIDEO_MODE &video_mode) {
   static constexpr float kMarginHorizontal = 10.f;
   static constexpr float kMarginTop = 112.f;
   static constexpr uint32_t kOn60FPS = 0xFFFF0000;
@@ -239,7 +239,8 @@ void RenderScene(NV2AState &state, uint32_t program_start, uint32_t last_frame_s
                          kColorSwatchTop + kColorSwatchHeight, kQuadZ);
   }
 
-  pb_print("Back: exit, A/X/up inc, B/Y/down dec\n");
+  pb_print("Back: exit, A/X/up inc, B/Y/down dec  Mode: %dx%d %dHz\n", video_mode.width, video_mode.height,
+           video_mode.refresh);
   char fps[32];
   if (current_fps == 0) {
     snprintf(fps, sizeof(fps), "<WHITE>");
@@ -312,6 +313,8 @@ int main() {
 
   LARGE_INTEGER start_counter;
   float current_fps = 0.0f;
+
+  VIDEO_MODE video_mode = XVideoGetMode();
 
   auto handle_button = [&running, &draw_iterations, &fps_counter_frames, &start_counter,
                         &current_fps](const SDL_ControllerButtonEvent &event) {
@@ -424,7 +427,7 @@ int main() {
     }
 
     WasteTime(state, draw_iterations);
-    RenderScene(state, program_start, last_frame_start, frame_start, draw_iterations, current_fps);
+    RenderScene(state, program_start, last_frame_start, frame_start, draw_iterations, current_fps, video_mode);
     last_frame_start = frame_start;
 
     while (pb_busy()) {
