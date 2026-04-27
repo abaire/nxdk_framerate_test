@@ -252,7 +252,7 @@ void RenderScene(NV2AState &state, uint32_t program_start, uint32_t last_frame_s
   }
 
   char vblank_ms[32];
-  snprintf(vblank_ms, sizeof(vblank_ms), "%3.2fms", vblank_duration_ms);
+  snprintf(vblank_ms, sizeof(vblank_ms), "%5.2fms", vblank_duration_ms);
 
   pb_print("Elapsed ms %3u  VBLK %s  FPS %s\n", frame_elapsed, vblank_ms, fps);
   pb_print("Iterations %u\n", draw_iterations);
