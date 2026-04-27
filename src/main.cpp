@@ -12,6 +12,7 @@
 
 #include "nxdk_ext.h"
 #include "printf.h"
+#include "profiler.h"
 #include "pushbuffer.h"
 
 using namespace PBKitPlusPlus;
@@ -164,7 +165,7 @@ void WasteTime(NV2AState &state, uint32_t draw_iterations) {
 }
 
 void RenderScene(NV2AState &state, uint32_t program_start, uint32_t last_frame_start, uint32_t frame_start,
-                 uint32_t draw_iterations, float current_fps, const VIDEO_MODE &video_mode) {
+                 uint32_t draw_iterations, float current_fps, const VIDEO_MODE &video_mode, float vblank_duration_ms) {
   static constexpr float kMarginHorizontal = 10.f;
   static constexpr float kMarginTop = 112.f;
   static constexpr uint32_t kOn60FPS = 0xFFFF0000;
@@ -250,7 +251,10 @@ void RenderScene(NV2AState &state, uint32_t program_start, uint32_t last_frame_s
     snprintf_(fps, sizeof(fps), "%0.4f", current_fps);
   }
 
-  pb_print("Elapsed ms %3u  FPS %s\n", frame_elapsed, fps);
+  char vblank_ms[32];
+  snprintf(vblank_ms, sizeof(vblank_ms), "%3.2fms", vblank_duration_ms);
+
+  pb_print("Elapsed ms %3u  VBLK %s  FPS %s\n", frame_elapsed, vblank_ms, fps);
   pb_print("Iterations %u\n", draw_iterations);
 
   for (auto i = 0; i < 32; ++i) {
@@ -308,15 +312,12 @@ int main() {
   static constexpr auto kFPSCounterFrames = 60;
   int32_t fps_counter_frames = -1;
 
-  LARGE_INTEGER perf_freq;
-  QueryPerformanceFrequency(&perf_freq);
-
-  LARGE_INTEGER start_counter;
+  Profiler fps_profiler;
   float current_fps = 0.0f;
 
   VIDEO_MODE video_mode = XVideoGetMode();
 
-  auto handle_button = [&running, &draw_iterations, &fps_counter_frames, &start_counter,
+  auto handle_button = [&running, &draw_iterations, &fps_counter_frames, &fps_profiler,
                         &current_fps](const SDL_ControllerButtonEvent &event) {
     switch (event.button) {
       case SDL_CONTROLLER_BUTTON_BACK:
@@ -373,7 +374,7 @@ int main() {
 
       case SDL_CONTROLLER_BUTTON_LEFTSHOULDER:
         if (fps_counter_frames < 0) {
-          QueryPerformanceCounter(&start_counter);
+          fps_profiler.Start();
           fps_counter_frames = kFPSCounterFrames;
           current_fps = -1.f;
         }
@@ -383,6 +384,7 @@ int main() {
     }
   };
 
+  Profiler vblank_timer;
   while (running) {
     auto frame_start = GetTickCount();
 
@@ -413,7 +415,9 @@ int main() {
       }
     }
 
+    vblank_timer.Start();
     pb_wait_for_vbl();
+    auto vblank_duration_ms = vblank_timer.DeltaMilliseconds();
     pb_reset();
     pb_target_back_buffer();
 
@@ -427,7 +431,8 @@ int main() {
     }
 
     WasteTime(state, draw_iterations);
-    RenderScene(state, program_start, last_frame_start, frame_start, draw_iterations, current_fps, video_mode);
+    RenderScene(state, program_start, last_frame_start, frame_start, draw_iterations, current_fps, video_mode,
+                vblank_duration_ms);
     last_frame_start = frame_start;
 
     while (pb_busy()) {
@@ -441,8 +446,7 @@ int main() {
         LARGE_INTEGER now;
         QueryPerformanceCounter(&now);
 
-        int64_t elapsed_ticks = now.QuadPart - start_counter.QuadPart;
-        current_fps = static_cast<float>(kFPSCounterFrames * perf_freq.QuadPart) / static_cast<float>(elapsed_ticks);
+        current_fps = fps_profiler.DeltaItemsPerSecond(kFPSCounterFrames);
       }
     }
   }

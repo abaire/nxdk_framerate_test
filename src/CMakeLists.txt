@@ -70,6 +70,7 @@ endmacro()
 add_executable(
         ${PROJECT_NAME}
         main.cpp
+        profiler.h
 )
 
 # Pull debug info out of the binary into a host-side linked binary.
