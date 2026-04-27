@@ -39,7 +39,7 @@ jobs:
           cmake --build build -- -j$(grep -c processor /proc/cpuinfo)
 
       - name: Upload ISO artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: xbox-iso
           path: build/src/xiso/nxdk_framerate_test_xiso/*.iso
